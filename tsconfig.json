@@ -2,5 +2,14 @@
   "files": [],
   "references": [
     { "path": "./tsconfig.app.json" }
-  ]
+  ],
+  "compilerOptions": {
+    "outDir": "dist",
+    "declaration": true,
+    "declarationDir": "dist",
+    "emitDeclarationOnly": false,
+    "module": "ESNext",
+    "target": "ES2017",
+    "moduleResolution": "Node"
+  }
 }

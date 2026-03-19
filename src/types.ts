@@ -1,8 +1,4 @@
-export type DestinyReadingSection = {
-  title: string;
-  content: string;
-  body?: string;
-};
+// ...existing code...
 export type BirthInput = {
   date: string;
   time?: string;
