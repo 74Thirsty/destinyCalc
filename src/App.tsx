@@ -1,6 +1,7 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useRef, useState } from 'react';
 import { calculateProfile } from './engine';
-import type { EngineResult } from './types';
+import { buildDestinyPrompt, generateDestinyReading, parseDestinyReading } from './grok';
+import type { DestinyReadingSection, EngineResult } from './types';
 
 function formatTraitName(trait: string): string {
   return trait
@@ -14,31 +15,72 @@ export default function App() {
   const [time, setTime] = useState('');
   const [location, setLocation] = useState('');
   const [result, setResult] = useState<EngineResult | null>(null);
+  const [reading, setReading] = useState('');
+  const [readingSections, setReadingSections] = useState<DestinyReadingSection[]>([]);
+  const [readingError, setReadingError] = useState('');
+  const [isReadingLoading, setIsReadingLoading] = useState(false);
+  const requestIdRef = useRef(0);
   const canSubmit = useMemo(() => Boolean(date), [date]);
 
-  function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!date) return;
 
-    setResult(
-      calculateProfile({
-        name: name.trim() || undefined,
-        date,
-        time: time || undefined,
-        location: location.trim() || undefined
-      })
-    );
+    const profile = calculateProfile({
+      name: name.trim() || undefined,
+      date,
+      time: time || undefined,
+      location: location.trim() || undefined
+    });
+
+    setResult(profile);
+    setReading('');
+    setReadingSections([]);
+    setReadingError('');
+
+    const currentRequestId = requestIdRef.current + 1;
+    requestIdRef.current = currentRequestId;
+    setIsReadingLoading(true);
+
+    try {
+      const prompt = buildDestinyPrompt({
+        name: name.trim() || 'Seeker',
+        profile
+      });
+      const response = await generateDestinyReading(prompt);
+
+      if (requestIdRef.current !== currentRequestId) {
+        return;
+      }
+
+      setReading(response);
+      setReadingSections(parseDestinyReading(response));
+    } catch (error) {
+      if (requestIdRef.current !== currentRequestId) {
+        return;
+      }
+
+      setReadingError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to reach Puter/xAI right now. Profile calculation still completed locally.'
+      );
+    } finally {
+      if (requestIdRef.current === currentRequestId) {
+        setIsReadingLoading(false);
+      }
+    }
   }
 
   return (
     <main className="app-shell">
       <section className="hero card">
         <div>
-          <p className="eyebrow">Destiny Engine MVP</p>
+          <p className="eyebrow">Destiny Engine + Grok</p>
           <h1>Blended symbolic profile calculator</h1>
           <p className="lede">
-            Enter a birth date and get a combined reading from Western zodiac, Chinese zodiac,
-            element mapping, and numerology.
+            Compute a local symbolic profile, then have Grok synthesize it into a structured destiny
+            reading across Western zodiac, Chinese zodiac, element mapping, and numerology.
           </p>
         </div>
 
@@ -63,8 +105,8 @@ export default function App() {
             <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Optional" />
           </label>
 
-          <button type="submit" disabled={!canSubmit}>
-            Calculate profile
+          <button type="submit" disabled={!canSubmit || isReadingLoading}>
+            {isReadingLoading ? 'Generating destiny reading…' : 'Calculate profile'}
           </button>
         </form>
       </section>
@@ -84,6 +126,43 @@ export default function App() {
               </div>
             </div>
             <p className="lede">{result.summary}</p>
+            <details className="prompt-details">
+              <summary>Prompt payload sent to Grok</summary>
+              <pre>{buildDestinyPrompt({ name: name.trim() || 'Seeker', profile: result })}</pre>
+            </details>
+          </article>
+
+          <article className="card reading-card">
+            <div className="summary-header">
+              <div>
+                <p className="eyebrow">AI synthesis</p>
+                <h3>Destiny reading</h3>
+              </div>
+              {isReadingLoading && <span className="pill status-pill">Contacting Grok via Puter.js</span>}
+            </div>
+
+            {readingError && <p className="error-text">{readingError}</p>}
+
+            {!readingError && isReadingLoading && (
+              <p className="lede">
+                Grok is synthesizing the computed symbolic profile into a five-part reading.
+              </p>
+            )}
+
+            {!isReadingLoading && readingSections.length > 0 && (
+              <div className="reading-sections">
+                {readingSections.map((section) => (
+                  <section key={section.title} className="reading-section">
+                    <h4>{section.title}</h4>
+                    <p>{section.body}</p>
+                  </section>
+                ))}
+              </div>
+            )}
+
+            {!isReadingLoading && !readingError && !readingSections.length && reading && (
+              <pre className="reading-raw">{reading}</pre>
+            )}
           </article>
 
           <div className="stats-grid">

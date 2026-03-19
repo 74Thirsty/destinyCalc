@@ -1,3 +1,8 @@
+export type DestinyReadingSection = {
+  title: string;
+  content: string;
+  body?: string;
+};
 export type BirthInput = {
   date: string;
   time?: string;

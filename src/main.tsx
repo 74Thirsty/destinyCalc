@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { registerSW } from 'vite-plugin-pwa/register';
+import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './styles.css';
 
