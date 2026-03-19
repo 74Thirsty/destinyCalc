@@ -24,7 +24,8 @@ body {
 }
 
 button,
-input {
+input,
+summary {
   font: inherit;
 }
 
@@ -99,6 +100,7 @@ button:disabled {
 h1,
 h2,
 h3,
+h4,
 p {
   margin-top: 0;
 }
@@ -117,6 +119,11 @@ h2 {
 h3 {
   font-size: 1.1rem;
   margin-bottom: 1rem;
+}
+
+h4 {
+  font-size: 1rem;
+  margin-bottom: 0.55rem;
 }
 
 .lede {
@@ -145,7 +152,8 @@ h3 {
   gap: 20px;
 }
 
-.summary-card {
+.summary-card,
+.reading-card {
   display: grid;
   gap: 14px;
 }
@@ -167,6 +175,54 @@ h3 {
   background: rgba(129, 140, 248, 0.16);
   border: 1px solid rgba(129, 140, 248, 0.35);
   color: #e9e7ff;
+}
+
+.status-pill {
+  justify-self: start;
+}
+
+.prompt-details {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+}
+
+.prompt-details summary {
+  cursor: pointer;
+  color: #c4b5fd;
+  font-weight: 600;
+}
+
+.prompt-details pre,
+.reading-raw {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(2, 6, 23, 0.55);
+  border-radius: 18px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow-x: auto;
+}
+
+.reading-sections {
+  display: grid;
+  gap: 14px;
+}
+
+.reading-section {
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.reading-section p {
+  margin: 0;
+  color: #dbe1ea;
+}
+
+.error-text {
+  margin: 0;
+  color: #fca5a5;
 }
 
 .stats-grid {
@@ -216,5 +272,13 @@ h3 {
 
   .stats-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .reading-sections {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .reading-section:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 }

@@ -9,6 +9,11 @@ function formatTraitName(trait: string): string {
     .replace(/^./, (s) => s.toUpperCase());
 }
 
+function getPromptName(name: string): string {
+  const normalized = name.trim();
+  return normalized || 'Unknown';
+}
+
 export default function App() {
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
@@ -21,6 +26,7 @@ export default function App() {
   const [isReadingLoading, setIsReadingLoading] = useState(false);
   const requestIdRef = useRef(0);
   const canSubmit = useMemo(() => Boolean(date), [date]);
+  const promptName = getPromptName(name);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -43,11 +49,10 @@ export default function App() {
     setIsReadingLoading(true);
 
     try {
-      const prompt = buildDestinyPrompt({
-        name: name.trim() || 'Seeker',
+      const response = await generateDestinyReading({
+        name: getPromptName(name),
         profile
       });
-      const response = await generateDestinyReading(prompt);
 
       if (requestIdRef.current !== currentRequestId) {
         return;
@@ -79,8 +84,8 @@ export default function App() {
           <p className="eyebrow">Destiny Engine + Grok</p>
           <h1>Blended symbolic profile calculator</h1>
           <p className="lede">
-            Compute a local symbolic profile, then have Grok synthesize it into a structured destiny
-            reading across Western zodiac, Chinese zodiac, element mapping, and numerology.
+            Compute the symbolic profile locally, then pass the derived western sign, Chinese sign,
+            element, life path, and trait map into Grok using the exact destiny prompt template.
           </p>
         </div>
 
@@ -127,8 +132,8 @@ export default function App() {
             </div>
             <p className="lede">{result.summary}</p>
             <details className="prompt-details">
-              <summary>Prompt payload sent to Grok</summary>
-              <pre>{buildDestinyPrompt({ name: name.trim() || 'Seeker', profile: result })}</pre>
+              <summary>Exact prompt sent to Grok</summary>
+              <pre>{buildDestinyPrompt({ name: promptName, profile: result })}</pre>
             </details>
           </article>
 
@@ -138,14 +143,14 @@ export default function App() {
                 <p className="eyebrow">AI synthesis</p>
                 <h3>Destiny reading</h3>
               </div>
-              {isReadingLoading && <span className="pill status-pill">Contacting Grok via Puter.js</span>}
+              {isReadingLoading && <span className="pill status-pill">Waiting for Puter + Grok</span>}
             </div>
 
             {readingError && <p className="error-text">{readingError}</p>}
 
             {!readingError && isReadingLoading && (
               <p className="lede">
-                Grok is synthesizing the computed symbolic profile into a five-part reading.
+                Sending the exact custom prompt plus the computed symbolic profile to Grok.
               </p>
             )}
 

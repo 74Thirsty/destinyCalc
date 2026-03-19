@@ -22,3 +22,43 @@ export type EngineResult = {
   lowTraits: Array<{ trait: string; score: number }>;
   summary: string;
 };
+
+export type DestinyReadingInput = {
+  name: string;
+  profile: EngineResult;
+};
+
+export type DestinyReadingSection = {
+  title: string;
+  body: string;
+};
+
+export type PuterChatResponse = {
+  message?: {
+    content?: string;
+  };
+};
+
+export type PuterClient = {
+  ai: {
+    chat: (
+      prompt: string,
+      options?: {
+        model?: string;
+        temperature?: number;
+        max_tokens?: number;
+        stream?: boolean;
+      }
+    ) => Promise<PuterChatResponse>;
+  };
+};
+
+declare global {
+  interface Window {
+    puter?: Partial<PuterClient>;
+  }
+
+  var puter: Partial<PuterClient> | undefined;
+}
+
+export {};
