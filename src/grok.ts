@@ -42,8 +42,8 @@ Tone:
 
 Output Format:
 - Section 1: Explanation of the numbers and symbols in the profile, synthesizing all systems into a cohesive interpretation of core identity and destiny themes.
-- Section 4: Destiny Themes and Life Path Influence
-- Section 6: Daily Horoscope`;
+- Section 2: Prophetic insight and forecast for {{today}} that ties into the users destiny in life.
+- Section 3: Prophetic Destiny Horoscope`;
 
 function serializeTraits(traits: DestinyReadingInput['profile']['traits']): string {
   return JSON.stringify(traits);
@@ -121,25 +121,61 @@ export async function generateDestinyReading(input: DestinyReadingInput): Promis
 
 export function parseDestinyReading(reading: string): DestinyReadingSection[] {
   const normalized = reading.replace(/\r\n/g, '\n').trim();
-  const matches = [...normalized.matchAll(/(?:^|\n)(?:#{1,6}\s*)?(?:[*-]\s*)?Section\s*(\d+)\s*:\s*([^\n]+)/gi)];
 
-  if (!matches.length) {
+  if (!normalized) {
     return [];
   }
 
-  return matches
-    .map((match, index) => {
-      const headingStart = match.index ?? 0;
-      const bodyStart = headingStart + match[0].length;
-      const bodyEnd = index + 1 < matches.length ? (matches[index + 1].index ?? normalized.length) : normalized.length;
-      const title = match[2]?.trim() || SECTION_TITLES[index] || `Section ${match[1]}`;
-      const body = normalized.slice(bodyStart, bodyEnd).trim().replace(/^[-:\s]+/, '');
+  const lines = normalized.split('\n');
+  const sections: DestinyReadingSection[] = [];
+  let currentTitle: string | null = null;
+  let currentBody: string[] = [];
 
-      return {
-        title,
-        body,
-        content: body
-      };
-    })
-    .filter((section) => section.body);
+  const flush = () => {
+    if (!currentTitle) {
+      return;
+    }
+
+    const body = currentBody.join('\n').trim().replace(/^[-:\s]+/, '');
+
+    if (body) {
+      sections.push({
+        title: currentTitle,
+        body
+      });
+    }
+  };
+
+  for (const line of lines) {
+    const heading = isRecognizedSectionHeading(line);
+
+    if (heading) {
+      flush();
+      currentTitle = heading;
+      currentBody = [];
+      continue;
+    }
+
+    if (currentTitle) {
+      currentBody.push(line);
+    }
+  }
+
+  flush();
+  return sections;
 }
+function isRecognizedSectionHeading(line: string): string | null {
+  const trimmed = line.trim();
+  for (const title of SECTION_TITLES) {
+    if (
+      trimmed === title ||
+      trimmed.startsWith(title + ':') ||
+      trimmed.startsWith(title + ' -') ||
+      trimmed.startsWith(title + ' —')
+    ) {
+      return title;
+    }
+  }
+  return null;
+}
+

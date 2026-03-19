@@ -27,6 +27,7 @@ export type DestinyReadingInput = {
 export type DestinyReadingSection = {
   title: string;
   body: string;
+  content?: string;
 };
 
 export type PuterChatResponse = {

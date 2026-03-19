@@ -1,9 +1,9 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { calculateProfile } from './engine';
+import { downloadReadingPdf } from './exportPdf';
 import { buildDestinyPrompt, generateDestinyReading, parseDestinyReading } from './grok';
 import { renderMarkdown } from './markdown';
 import type { DestinyReadingSection, EngineResult } from './types';
-import { generateDailyHoroscope } from './horoscope';
 
 function formatTraitName(trait: string): string {
   return trait
@@ -16,98 +16,31 @@ function getPromptName(name: string): string {
   return normalized || 'Unknown';
 }
 
-function buildReadingMarkdown(reading: string, sections: DestinyReadingSection[]): string {
-  if (reading.trim()) {
-    return reading;
+function buildReadingMarkdown(sections: DestinyReadingSection[], fallbackReading: string): string {
+  if (sections.length) {
+    return sections.map((section) => `## ${section.title}\n\n${section.body}`).join('\n\n');
   }
 
-  if (!sections.length) {
-    return '';
-  }
-
-  return sections.map((section) => `## ${section.title}\n\n${section.body}`).join('\n\n');
-}
-
-function exportReadingAsPdf(element: HTMLElement | null): void {
-  if (!element) {
-    return;
-  }
-
-  const popup = globalThis.window.open('', '_blank', 'noopener,noreferrer,width=960,height=1200');
-
-  if (!popup) {
-    globalThis.window.alert('Unable to open the print preview window. Check the browser popup policy and retry.');
-    return;
-  }
-
-  popup.document.write(`
-    <!doctype html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <title>destiny-reading</title>
-        <style>
-          body {
-            margin: 0;
-            padding: 32px;
-            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            color: #111827;
-            background: #ffffff;
-            line-height: 1.65;
-          }
-
-          h1, h2, h3, h4 {
-            color: #312e81;
-            margin: 0 0 12px;
-          }
-
-          p, ul, pre {
-            margin: 0 0 16px;
-          }
-
-          ul {
-            padding-inline-start: 20px;
-          }
-
-          code {
-            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-            background: #eef2ff;
-            padding: 0.15rem 0.35rem;
-            border-radius: 6px;
-          }
-
-          pre {
-            white-space: pre-wrap;
-            word-break: break-word;
-            background: #f8fafc;
-            border: 1px solid #cbd5e1;
-            border-radius: 16px;
-            padding: 16px;
-          }
-
-          @media print {
-            body {
-              padding: 20px;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        ${element.innerHTML}
-      </body>
-    </html>
-  `);
-  popup.document.close();
-  popup.focus();
-
-  globalThis.setTimeout(() => {
-    popup.print();
-    popup.close();
-  }, 250);
+  return fallbackReading.trim();
 }
 
 function findHoroscopeSection(sections: DestinyReadingSection[]): DestinyReadingSection | null {
   return sections.find((section) => section.title.toLowerCase() === 'daily horoscope') ?? null;
+}
+
+function sanitizeFilenameSegment(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'destiny-reading';
+}
+
+function buildSpeechText(name: string, summary: string, sections: DestinyReadingSection[], horoscope: DestinyReadingSection | null): string {
+  const sectionText = sections
+    .map((section) => `${section.title}. ${section.body.replace(/\s+/g, ' ').trim()}`)
+    .join(' ');
+  const horoscopeText = horoscope ? `Daily Horoscope. ${horoscope.body.replace(/\s+/g, ' ').trim()}` : '';
+
+  return [name ? `${name}'s symbolic profile.` : 'Your symbolic profile.', summary, sectionText, horoscopeText]
+    .filter(Boolean)
+    .join(' ');
 }
 
 export default function App() {
@@ -119,20 +52,60 @@ export default function App() {
   const [reading, setReading] = useState('');
   const [readingSections, setReadingSections] = useState<DestinyReadingSection[]>([]);
   const [readingError, setReadingError] = useState('');
-  const [horoscope, setHoroscope] = useState('');
   const [isReadingLoading, setIsReadingLoading] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceUri, setSelectedVoiceUri] = useState('');
+  const [speechRate, setSpeechRate] = useState(1);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speechError, setSpeechError] = useState('');
   const requestIdRef = useRef(0);
-  const readingRef = useRef<HTMLDivElement | null>(null);
   const canSubmit = useMemo(() => Boolean(date), [date]);
   const promptName = getPromptName(name);
-  const readingMarkdown = useMemo(() => buildReadingMarkdown(reading, readingSections), [reading, readingSections]);
-  const renderedReading = useMemo(() => renderMarkdown(readingMarkdown), [readingMarkdown]);
   const horoscopeSection = useMemo(() => findHoroscopeSection(readingSections), [readingSections]);
+  const nonHoroscopeSections = useMemo(
+    () => readingSections.filter((section) => section.title.toLowerCase() !== 'daily horoscope'),
+    [readingSections]
+  );
+  const readingMarkdown = useMemo(
+    () => buildReadingMarkdown(nonHoroscopeSections, readingSections.length ? '' : reading),
+    [nonHoroscopeSections, readingSections.length, reading]
+  );
+  const renderedReading = useMemo(() => renderMarkdown(readingMarkdown), [readingMarkdown]);
   const renderedHoroscope = useMemo(() => renderMarkdown(horoscopeSection?.body ?? ''), [horoscopeSection]);
+  const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const speechText = useMemo(
+    () => (result ? buildSpeechText(name.trim(), result.summary, nonHoroscopeSections, horoscopeSection) : ''),
+    [horoscopeSection, name, nonHoroscopeSections, result]
+  );
+
+  useEffect(() => {
+    if (!speechSupported) {
+      return undefined;
+    }
+
+    const syncVoices = () => {
+      const voices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith('en'));
+      setAvailableVoices(voices);
+      setSelectedVoiceUri((current) => current || voices[0]?.voiceURI || '');
+    };
+
+    syncVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', syncVoices);
+
+    return () => {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.removeEventListener('voiceschanged', syncVoices);
+    };
+  }, [speechSupported]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!date) return;
+
+    if (speechSupported) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
 
     const profile = calculateProfile({
       name: name.trim() || undefined,
@@ -145,6 +118,7 @@ export default function App() {
     setReading('');
     setReadingSections([]);
     setReadingError('');
+    setSpeechError('');
 
     const currentRequestId = requestIdRef.current + 1;
     requestIdRef.current = currentRequestId;
@@ -179,24 +153,88 @@ export default function App() {
     }
   }
 
-  function handleHoroscopeRefresh(): void {
-    if (!result) {
+  function handlePdfExport(): void {
+    if (!result || !renderedReading) {
       return;
     }
 
-    setHoroscope(generateDailyHoroscope(result.westernSign));
+    const sectionsForPdf = [
+      {
+        title: 'Profile Summary',
+        body: result.summary
+      },
+      ...nonHoroscopeSections,
+      ...(horoscopeSection ? [horoscopeSection] : [])
+    ];
+
+    downloadReadingPdf({
+      filename: `${sanitizeFilenameSegment(name || result.westernSign)}-${date || 'reading'}.pdf`,
+      title: name.trim() ? `${name.trim()}'s Destiny Reading` : 'Destiny Reading',
+      subtitle: `${result.westernSign} • ${result.chineseElement} ${result.chineseAnimal} • Life Path ${result.numerologyLifePath}`,
+      sections: sectionsForPdf
+    });
+  }
+
+  function handleReadAloud(): void {
+    if (!speechSupported || !speechText) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(speechText);
+    const voice = availableVoices.find((item) => item.voiceURI === selectedVoiceUri);
+
+    if (voice) {
+      utterance.voice = voice;
+    }
+
+    utterance.rate = speechRate;
+    utterance.onstart = () => {
+      setSpeechError('');
+      setIsSpeaking(true);
+    };
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => {
+      setSpeechError('Speech synthesis failed in this browser session.');
+      setIsSpeaking(false);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function handleStopReading(): void {
+    if (!speechSupported) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
   }
 
   return (
     <main className="app-shell">
-      <section className="hero card">
-        <div>
+      <section className="hero card hero-card">
+        <div className="hero-copy">
           <p className="eyebrow">Destiny Engine + Grok</p>
-          <h1>Blended symbolic profile calculator</h1>
+          <h1>Symbolic profile, refined output, usable exports.</h1>
           <p className="lede">
-            Compute the symbolic profile locally, then pass the derived western sign, Chinese sign,
-            element, life path, and trait map into Grok using the exact destiny prompt template.
+            Local profile computation, sectioned Grok synthesis, downloadable PDF output, and native read-aloud.
           </p>
+        </div>
+
+        <div className="hero-metrics" aria-hidden="true">
+          <div className="metric-card">
+            <span className="metric-value">6</span>
+            <span className="metric-label">Structured sections</span>
+          </div>
+          <div className="metric-card">
+            <span className="metric-value">PDF</span>
+            <span className="metric-label">Direct download</span>
+          </div>
+          <div className="metric-card">
+            <span className="metric-value">TTS</span>
+            <span className="metric-label">Native narration</span>
+          </div>
         </div>
 
         <form className="input-grid" onSubmit={handleSubmit}>
@@ -228,7 +266,7 @@ export default function App() {
 
       {result && (
         <section className="results">
-          <article className="card summary-card">
+          <article className="card summary-card accent-card">
             <div className="summary-header">
               <div>
                 <p className="eyebrow">Profile result</p>
@@ -247,69 +285,118 @@ export default function App() {
             </details>
           </article>
 
-          <article className="card reading-card">
-            <div className="summary-header reading-header-row">
-              <div>
-                <p className="eyebrow">AI synthesis</p>
-                <h3>Destiny reading</h3>
+          <div className="content-grid">
+            <article className="card reading-card">
+              <div className="summary-header reading-header-row">
+                <div>
+                  <p className="eyebrow">AI synthesis</p>
+                  <h3>Destiny reading</h3>
+                </div>
+                <div className="reading-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={handlePdfExport}
+                    disabled={!renderedReading}
+                  >
+                    Export PDF
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={handleReadAloud}
+                    disabled={!speechSupported || !speechText || isReadingLoading}
+                  >
+                    {isSpeaking ? 'Restart narration' : 'Read aloud'}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={handleStopReading}
+                    disabled={!speechSupported || !isSpeaking}
+                  >
+                    Stop
+                  </button>
+                  {isReadingLoading && <span className="pill status-pill">Waiting for Puter + Grok</span>}
+                </div>
               </div>
-              <div className="reading-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => exportReadingAsPdf(readingRef.current)}
-                  disabled={!renderedReading}
-                >
-                  Export PDF
-                </button>
-                {isReadingLoading && <span className="pill status-pill">Waiting for Puter + Grok</span>}
+
+              {speechSupported && (
+                <div className="voice-toolbar">
+                  <label>
+                    <span>Voice</span>
+                    <select value={selectedVoiceUri} onChange={(e) => setSelectedVoiceUri(e.target.value)}>
+                      {availableVoices.map((voice) => (
+                        <option key={voice.voiceURI} value={voice.voiceURI}>
+                          {voice.name} ({voice.lang})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Rate</span>
+                    <input
+                      type="range"
+                      min="0.8"
+                      max="1.3"
+                      step="0.05"
+                      value={speechRate}
+                      onChange={(e) => setSpeechRate(Number(e.target.value))}
+                    />
+                    <strong>{speechRate.toFixed(2)}×</strong>
+                  </label>
+                </div>
+              )}
+
+              {!speechSupported && <p className="lede">Read-aloud requires the browser SpeechSynthesis API.</p>}
+              {speechError && <p className="error-text">{speechError}</p>}
+              {readingError && <p className="error-text">{readingError}</p>}
+
+              {!readingError && isReadingLoading && (
+                <p className="lede">
+                  Sending the exact custom prompt plus the computed symbolic profile to Grok.
+                </p>
+              )}
+
+              {!isReadingLoading && renderedReading && (
+                <div
+                  id="markdown-output"
+                  className="markdown-output reading-output"
+                  dangerouslySetInnerHTML={{ __html: renderedReading }}
+                />
+              )}
+
+              {!isReadingLoading && !readingError && !renderedReading && reading && (
+                <pre className="reading-raw">{reading}</pre>
+              )}
+            </article>
+
+            <article className="card horoscope-card spotlight-card">
+              <div className="summary-header">
+                <div>
+                  <p className="eyebrow">Daily signal</p>
+                  <h3>Horoscope</h3>
+                </div>
+                <p className="lede">Rendered independently from the reading body so the daily signal stays isolated.</p>
               </div>
-            </div>
 
-            {readingError && <p className="error-text">{readingError}</p>}
-
-            {!readingError && isReadingLoading && (
-              <p className="lede">
-                Sending the exact custom prompt plus the computed symbolic profile to Grok.
-              </p>
-            )}
-
-            {!isReadingLoading && renderedReading && (
-              <div
-                id="markdown-output"
-                ref={readingRef}
-                className="markdown-output"
-                dangerouslySetInnerHTML={{ __html: renderedReading }}
-              />
-            )}
-
-            {!isReadingLoading && !readingError && !renderedReading && reading && (
-              <pre className="reading-raw">{reading}</pre>
-            )}
-          </article>
-
-          <article className="card horoscope-card">
-            <div className="summary-header">
-              <div>
-                <p className="eyebrow">Daily signal</p>
-                <h3>Horoscope</h3>
-              </div>
-              <p className="lede">Generated by Grok from the same symbolic profile and today&apos;s date.</p>
-            </div>
-
-            {isReadingLoading && <p className="lede">Waiting for Grok to produce the daily horoscope.</p>}
-            {!isReadingLoading && readingError && <p className="error-text">Daily horoscope unavailable while the Grok request is failing.</p>}
-            {!isReadingLoading && !readingError && renderedHoroscope && (
-              <div
-                id="horoscope-output"
-                className="markdown-output horoscope-output"
-                dangerouslySetInnerHTML={{ __html: renderedHoroscope }}
-              />
-            )}
-          </article>
+              {isReadingLoading && <p className="lede">Waiting for Grok to produce the daily horoscope.</p>}
+              {!isReadingLoading && readingError && <p className="error-text">Daily horoscope unavailable while the Grok request is failing.</p>}
+              {!isReadingLoading && !readingError && renderedHoroscope && (
+                <div
+                  id="horoscope-output"
+                  className="markdown-output horoscope-output"
+                  dangerouslySetInnerHTML={{ __html: renderedHoroscope }}
+                />
+              )}
+              {!isReadingLoading && !readingError && !renderedHoroscope && (
+                <p className="lede">The Grok response did not include a recognizable Daily Horoscope section.</p>
+              )}
+            </article>
+          </div>
 
           <div className="stats-grid">
-            <article className="card">
+            <article className="card stat-card">
               <h3>Top traits</h3>
               <ul className="trait-list">
                 {result.topTraits.map((item) => (
@@ -321,7 +408,7 @@ export default function App() {
               </ul>
             </article>
 
-            <article className="card">
+            <article className="card stat-card">
               <h3>Lower traits</h3>
               <ul className="trait-list">
                 {result.lowTraits.map((item) => (
