@@ -35,17 +35,14 @@ Your task:
 8. End with a richer daily horoscope for {{today}} that is specifically grounded in the western sign and the full symbolic profile. Make it feel current, concrete, and directional rather than generic.
 
 Tone:
-- Insightful, mystical, but grounded.
+- Insightful, mystical, prophetic.
 - Avoid clichés.
 - Make the reading feel personal and specific to the data.
 - The daily horoscope should be 2-4 sentences with a clear emotional/weather pattern, one likely opportunity, and one practical caution.
 
 Output Format:
-- Section 1: Core Identity
-- Section 2: Strengths
-- Section 3: Challenges or Shadow Patterns
+- Section 1: Explanation of the numbers and symbols in the profile, synthesizing all systems into a cohesive interpretation of core identity and destiny themes.
 - Section 4: Destiny Themes and Life Path Influence
-- Section 5: Closing Insight
 - Section 6: Daily Horoscope`;
 
 function serializeTraits(traits: DestinyReadingInput['profile']['traits']): string {
