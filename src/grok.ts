@@ -43,7 +43,8 @@ Tone:
 Output Format:
 - Section 1: Explanation of the numbers and symbols in the profile, synthesizing all systems into a cohesive interpretation of core identity and destiny themes.
 - Section 2: Prophetic insight and forecast for {{today}} that ties into the users destiny in life.
-- Section 3: Prophetic Destiny Horoscope`;
+- Section 3: Prophetic Destiny Horoscope
+- Section 4: Lucky Numbers (5 numbers between 1 and 70 in one set, 4 numbers from 0-9, and 3 numbers from 0-9) that are auspicious for the user today based on their profile.`;
 
 function serializeTraits(traits: DestinyReadingInput['profile']['traits']): string {
   return JSON.stringify(traits);
