@@ -8,7 +8,8 @@ const SECTION_TITLES = [
   'Strengths',
   'Challenges or Shadow Patterns',
   'Destiny Themes and Life Path Influence',
-  'Closing Insight'
+  'Closing Insight',
+  'Daily Horoscope'
 ] as const;
 
 const DESTINY_PROMPT_TEMPLATE = `You are an expert symbolic interpreter who blends Western astrology, Chinese zodiac, numerology, and personality trait analysis into a unified destiny reading.
@@ -16,6 +17,7 @@ const DESTINY_PROMPT_TEMPLATE = `You are an expert symbolic interpreter who blen
 Use the following profile data to create a cohesive, insightful interpretation:
 
 Name: {{name}}
+Today: {{today}}
 Western Zodiac: {{western_sign}}
 Chinese Zodiac: {{chinese_sign}}
 Element: {{element}}
@@ -29,18 +31,21 @@ Your task:
 4. Describe how the Western sign, Chinese sign, and Life Path number interact.
 5. Interpret the trait scores and show how they shape behavior.
 6. Provide practical guidance or life themes based on the combined symbolism.
+7. End with a richer daily horoscope for {{today}} that is specifically grounded in the western sign and the full symbolic profile. Make it feel current, concrete, and directional rather than generic.
 
 Tone:
 - Insightful, mystical, but grounded.
 - Avoid clichés.
 - Make the reading feel personal and specific to the data.
+- The daily horoscope should be 2-4 sentences with a clear emotional/weather pattern, one likely opportunity, and one practical caution.
 
 Output Format:
 - Section 1: Core Identity
 - Section 2: Strengths
 - Section 3: Challenges or Shadow Patterns
 - Section 4: Destiny Themes and Life Path Influence
-- Section 5: Closing Insight`;
+- Section 5: Closing Insight
+- Section 6: Daily Horoscope`;
 
 function serializeTraits(traits: DestinyReadingInput['profile']['traits']): string {
   return JSON.stringify(traits);
@@ -52,9 +57,14 @@ function fillTemplate(template: string, values: Record<string, string>): string 
   }, template);
 }
 
+function getCurrentDateLabel(date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
 export function buildDestinyPrompt({ name, profile }: DestinyReadingInput): string {
   return fillTemplate(DESTINY_PROMPT_TEMPLATE, {
     name,
+    today: getCurrentDateLabel(),
     western_sign: profile.westernSign,
     chinese_sign: profile.chineseAnimal,
     element: profile.chineseElement,
