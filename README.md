@@ -189,13 +189,7 @@ Contributions are welcome.
 
 ## License
 
-Add a license file and update this section.
-
-Example:
-
-```md
-MIT
-```
+[License](LICENSE.md)
 
 ---
 
@@ -208,4 +202,3 @@ Built by **74Thirsty**
 <p align="center">
   <strong>Build slowly. Calculate clearly. Turn symbolism into software.</strong>
 </p>
-```

@@ -1,6 +1,8 @@
-import { FormEvent, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { calculateProfile } from './engine';
 import { buildDestinyPrompt, generateDestinyReading, parseDestinyReading } from './grok';
+import { generateDailyHoroscope } from './horoscope';
+import { renderMarkdown } from './markdown';
 import type { DestinyReadingSection, EngineResult } from './types';
 
 function formatTraitName(trait: string): string {
@@ -14,6 +16,96 @@ function getPromptName(name: string): string {
   return normalized || 'Unknown';
 }
 
+function buildReadingMarkdown(reading: string, sections: DestinyReadingSection[]): string {
+  if (reading.trim()) {
+    return reading;
+  }
+
+  if (!sections.length) {
+    return '';
+  }
+
+  return sections.map((section) => `## ${section.title}\n\n${section.body}`).join('\n\n');
+}
+
+function exportReadingAsPdf(element: HTMLElement | null): void {
+  if (!element) {
+    return;
+  }
+
+  const popup = globalThis.window.open('', '_blank', 'noopener,noreferrer,width=960,height=1200');
+
+  if (!popup) {
+    globalThis.window.alert('Unable to open the print preview window. Check the browser popup policy and retry.');
+    return;
+  }
+
+  popup.document.write(`
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <title>destiny-reading</title>
+        <style>
+          body {
+            margin: 0;
+            padding: 32px;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #111827;
+            background: #ffffff;
+            line-height: 1.65;
+          }
+
+          h1, h2, h3, h4 {
+            color: #312e81;
+            margin: 0 0 12px;
+          }
+
+          p, ul, pre {
+            margin: 0 0 16px;
+          }
+
+          ul {
+            padding-left: 20px;
+          }
+
+          code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: #eef2ff;
+            padding: 0.15rem 0.35rem;
+            border-radius: 6px;
+          }
+
+          pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 16px;
+            padding: 16px;
+          }
+
+          @media print {
+            body {
+              padding: 20px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        ${element.innerHTML}
+      </body>
+    </html>
+  `);
+  popup.document.close();
+  popup.focus();
+
+  globalThis.setTimeout(() => {
+    popup.print();
+    popup.close();
+  }, 250);
+}
+
 export default function App() {
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
@@ -23,10 +115,23 @@ export default function App() {
   const [reading, setReading] = useState('');
   const [readingSections, setReadingSections] = useState<DestinyReadingSection[]>([]);
   const [readingError, setReadingError] = useState('');
+  const [horoscope, setHoroscope] = useState('');
   const [isReadingLoading, setIsReadingLoading] = useState(false);
   const requestIdRef = useRef(0);
+  const readingRef = useRef<HTMLDivElement | null>(null);
   const canSubmit = useMemo(() => Boolean(date), [date]);
   const promptName = getPromptName(name);
+  const readingMarkdown = useMemo(() => buildReadingMarkdown(reading, readingSections), [reading, readingSections]);
+  const renderedReading = useMemo(() => renderMarkdown(readingMarkdown), [readingMarkdown]);
+
+  useEffect(() => {
+    if (!result) {
+      setHoroscope('');
+      return;
+    }
+
+    setHoroscope(generateDailyHoroscope(result.westernSign));
+  }, [result]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -75,6 +180,14 @@ export default function App() {
         setIsReadingLoading(false);
       }
     }
+  }
+
+  function handleHoroscopeRefresh(): void {
+    if (!result) {
+      return;
+    }
+
+    setHoroscope(generateDailyHoroscope(result.westernSign));
   }
 
   return (
@@ -138,12 +251,22 @@ export default function App() {
           </article>
 
           <article className="card reading-card">
-            <div className="summary-header">
+            <div className="summary-header reading-header-row">
               <div>
                 <p className="eyebrow">AI synthesis</p>
                 <h3>Destiny reading</h3>
               </div>
-              {isReadingLoading && <span className="pill status-pill">Waiting for Puter + Grok</span>}
+              <div className="reading-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => exportReadingAsPdf(readingRef.current)}
+                  disabled={!renderedReading}
+                >
+                  Export PDF
+                </button>
+                {isReadingLoading && <span className="pill status-pill">Waiting for Puter + Grok</span>}
+              </div>
             </div>
 
             {readingError && <p className="error-text">{readingError}</p>}
@@ -154,20 +277,33 @@ export default function App() {
               </p>
             )}
 
-            {!isReadingLoading && readingSections.length > 0 && (
-              <div className="reading-sections">
-                {readingSections.map((section) => (
-                  <section key={section.title} className="reading-section">
-                    <h4>{section.title}</h4>
-                    <p>{section.body}</p>
-                  </section>
-                ))}
-              </div>
+            {!isReadingLoading && renderedReading && (
+              <div
+                id="markdown-output"
+                ref={readingRef}
+                className="markdown-output"
+                dangerouslySetInnerHTML={{ __html: renderedReading }}
+              />
             )}
 
-            {!isReadingLoading && !readingError && !readingSections.length && reading && (
+            {!isReadingLoading && !readingError && !renderedReading && reading && (
               <pre className="reading-raw">{reading}</pre>
             )}
+          </article>
+
+          <article className="card horoscope-card">
+            <div className="summary-header reading-header-row">
+              <div>
+                <p className="eyebrow">Daily signal</p>
+                <h3>Horoscope</h3>
+              </div>
+              <button type="button" className="secondary-button" onClick={handleHoroscopeRefresh}>
+                Get Today&apos;s Horoscope
+              </button>
+            </div>
+            <div id="horoscope-output" className="horoscope-output">
+              <p>{horoscope}</p>
+            </div>
           </article>
 
           <div className="stats-grid">

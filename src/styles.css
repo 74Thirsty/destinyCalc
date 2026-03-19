@@ -65,6 +65,12 @@ button:disabled {
   transform: none;
 }
 
+.secondary-button {
+  background: rgba(129, 140, 248, 0.14);
+  border: 1px solid rgba(129, 140, 248, 0.45);
+  color: #eef2ff;
+}
+
 #root {
   width: 100%;
 }
@@ -153,7 +159,8 @@ h4 {
 }
 
 .summary-card,
-.reading-card {
+.reading-card,
+.horoscope-card {
   display: grid;
   gap: 14px;
 }
@@ -161,6 +168,18 @@ h4 {
 .summary-header {
   display: grid;
   gap: 16px;
+}
+
+.reading-header-row {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: start;
+}
+
+.reading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 10px;
 }
 
 .pill-row {
@@ -203,19 +222,67 @@ h4 {
   overflow-x: auto;
 }
 
-.reading-sections {
+.markdown-output {
   display: grid;
   gap: 14px;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.reading-section {
-  padding: 16px;
+.markdown-output h1,
+.markdown-output h2,
+.markdown-output h3,
+.markdown-output h4 {
+  color: #f5f3ff;
+  margin-bottom: 0;
+}
+
+.markdown-output p,
+.markdown-output ul,
+.markdown-output pre {
+  margin: 0;
+  color: #dbe1ea;
+}
+
+.markdown-output ul {
+  padding-left: 1.25rem;
+}
+
+.markdown-output li + li {
+  margin-top: 0.45rem;
+}
+
+.markdown-output code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 8px;
+  padding: 0.1rem 0.35rem;
+  color: #e9d5ff;
+}
+
+.markdown-output pre {
+  padding: 14px;
+  border-radius: 18px;
+  overflow-x: auto;
+  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(129, 140, 248, 0.18);
+}
+
+.markdown-output pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.horoscope-output {
+  padding: 16px 18px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.reading-section p {
+.horoscope-output p {
   margin: 0;
   color: #dbe1ea;
 }
@@ -258,27 +325,14 @@ h4 {
   }
 
   .input-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .input-grid button {
-    grid-column: 1 / -1;
-  }
-
-  .summary-header {
-    grid-template-columns: 1fr auto;
-    align-items: start;
+    grid-column: span 2;
   }
 
   .stats-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .reading-sections {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .reading-section:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

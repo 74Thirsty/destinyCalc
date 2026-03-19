@@ -1,7 +1,7 @@
 {
   "name": "destiny-engine-pwa",
   "private": false,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "Private",
   "type": "module",
   "scripts": {

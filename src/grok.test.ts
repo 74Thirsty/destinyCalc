@@ -64,7 +64,8 @@ describe('grok integration helpers', () => {
     expect(sections).toHaveLength(5);
     expect(sections[0]).toEqual({
       title: 'Core Identity',
-      body: 'Innovative but emotionally porous.'
+      body: 'Innovative but emotionally porous.',
+      content: 'Innovative but emotionally porous.'
     });
     expect(sections[4]?.title).toBe('Closing Insight');
   });
